@@ -174,12 +174,15 @@ public struct OAuth2Client: Sendable {
         let expiresIn = try JSONScanner.int(forKey: "expires_in", in: body)
         let refreshToken = try JSONScanner.string(forKey: "refresh_token", in: body)
         let scope = try JSONScanner.string(forKey: "scope", in: body)
+        // OIDC `id_token` (v0.3+). Optional; absent for pure OAuth 2.0 responses.
+        let idToken = try JSONScanner.string(forKey: "id_token", in: body)
         return TokenResponse(
             accessToken: accessToken,
             tokenType: tokenType,
             expiresIn: expiresIn,
             refreshToken: refreshToken,
-            scope: scope
+            scope: scope,
+            idToken: idToken
         )
     }
 }

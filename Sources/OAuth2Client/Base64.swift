@@ -24,6 +24,69 @@ internal enum Base64 {
         encode(bytes, alphabet: urlAlphabet, padding: false)
     }
 
+    /// Decode URL-safe base64 (with or without `=` padding; accepts `-_`).
+    /// Returns nil on invalid characters or invalid length. Added in v0.3
+    /// for JWT payload decoding (OIDC ID-token claim extraction).
+    internal static func urlDecode(_ s: String) -> [UInt8]? {
+        var input = Array(s.utf8)
+        // Add padding if missing — base64 length must be a multiple of 4.
+        let remainder = input.count % 4
+        if remainder == 2 {
+            input.append(0x3D); input.append(0x3D)  // "=="
+        } else if remainder == 3 {
+            input.append(0x3D)  // "="
+        } else if remainder == 1 {
+            return nil  // invalid length
+        }
+
+        var out: [UInt8] = []
+        out.reserveCapacity((input.count / 4) * 3)
+
+        var i = 0
+        while i < input.count {
+            let v0 = Self.decodeURLChar(input[i])
+            let v1 = Self.decodeURLChar(input[i + 1])
+            let v2 = Self.decodeURLChar(input[i + 2])
+            let v3 = Self.decodeURLChar(input[i + 3])
+
+            guard let b0 = v0, let b1 = v1 else { return nil }
+
+            // Two padding chars: only first 2 chars encode data; emit 1 byte.
+            if v2 == nil && input[i + 2] == 0x3D && input[i + 3] == 0x3D {
+                out.append(UInt8((b0 << 2) | (b1 >> 4)))
+                i += 4
+                continue
+            }
+            // One padding char: first 3 chars encode data; emit 2 bytes.
+            if v3 == nil && input[i + 3] == 0x3D {
+                guard let b2 = v2 else { return nil }
+                out.append(UInt8((b0 << 2) | (b1 >> 4)))
+                out.append(UInt8(((b1 & 0x0F) << 4) | (b2 >> 2)))
+                i += 4
+                continue
+            }
+            guard let b2 = v2, let b3 = v3 else { return nil }
+            out.append(UInt8((b0 << 2) | (b1 >> 4)))
+            out.append(UInt8(((b1 & 0x0F) << 4) | (b2 >> 2)))
+            out.append(UInt8(((b2 & 0x03) << 6) | b3))
+            i += 4
+        }
+        return out
+    }
+
+    private static func decodeURLChar(_ c: UInt8) -> UInt32? {
+        switch c {
+        case 0x41...0x5A: return UInt32(c - 0x41)         // A-Z → 0-25
+        case 0x61...0x7A: return UInt32(c - 0x61) + 26    // a-z → 26-51
+        case 0x30...0x39: return UInt32(c - 0x30) + 52    // 0-9 → 52-61
+        case 0x2D: return 62                              // - → 62 (URL-safe + standard +)
+        case 0x5F: return 63                              // _ → 63 (URL-safe / standard /)
+        case 0x2B: return 62                              // + (standard alphabet, accept)
+        case 0x2F: return 63                              // / (standard alphabet, accept)
+        default: return nil
+        }
+    }
+
     private static func encode(_ bytes: [UInt8], alphabet: [UInt8], padding: Bool) -> String {
         if bytes.isEmpty { return "" }
         var out: [UInt8] = []

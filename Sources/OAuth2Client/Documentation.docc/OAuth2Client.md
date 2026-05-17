@@ -1,6 +1,6 @@
 # ``OAuth2Client``
 
-RFC 6749 OAuth 2.0 client — Sendable, public API Foundation-free; caller-driven HTTP transport. v0.1 covers the token endpoint (back half); v0.2 adds the auth flow start (front half).
+RFC 6749 OAuth 2.0 client — Sendable, public API Foundation-free; caller-driven HTTP transport. v0.1 token endpoint + v0.2 auth flow start + v0.3 token caching + OIDC ID-token claim helpers.
 
 ## Overview
 
@@ -64,6 +64,16 @@ let url = client.authorizationURL(
 ### Response
 
 - ``TokenResponse``
+
+### Token caching (v0.3+)
+
+- ``TokenStorage``
+- ``CachedToken``
+- ``InMemoryTokenStorage``
+
+### OIDC ID-token (v0.3+)
+
+- ``OIDCClaims``
 
 ### Errors
 

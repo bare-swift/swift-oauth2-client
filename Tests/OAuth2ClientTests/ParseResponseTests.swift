@@ -21,6 +21,16 @@ struct ParseResponseTests {
         #expect(response.expiresIn == nil)
         #expect(response.refreshToken == nil)
         #expect(response.scope == nil)
+        #expect(response.idToken == nil)
+    }
+
+    @Test("OIDC success response surfaces id_token field (v0.3)")
+    func oidcResponseWithIdToken() throws(OAuth2ClientError) {
+        let json = #"{"access_token":"at","token_type":"Bearer","id_token":"hdr.payload.sig"}"#
+        let bytes = Bytes(Array(json.utf8))
+        let response = try Self.client.parseResponse(bytes)
+        #expect(response.accessToken == "at")
+        #expect(response.idToken == "hdr.payload.sig")
     }
 
     @Test("full success response parses all fields")

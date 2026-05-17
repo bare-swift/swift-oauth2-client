@@ -1,6 +1,6 @@
 # swift-oauth2-client
 
-RFC 6749 OAuth 2.0 client — Sendable, public API Foundation-free; caller-driven HTTP transport. v0.1 covers the token endpoint (back half); v0.2 adds the auth flow start (front half): authorization URL builder + PKCE + state/nonce generators + HTTP Basic client auth.
+RFC 6749 OAuth 2.0 client — Sendable, public API Foundation-free; caller-driven HTTP transport. v0.1 token endpoint + v0.2 auth flow start (auth URL + PKCE + state/nonce + Basic auth) + v0.3 token caching + OIDC ID-token claim helpers.
 
 Composes with [`swift-bearer`](https://github.com/bare-swift/swift-bearer) (resource access), [`swift-jwt-verify`](https://github.com/bare-swift/swift-jwt-verify) (ID token verification + signing), and [`swift-basic-auth`](https://github.com/bare-swift/swift-basic-auth) for the complete OIDC relying-party stack.
 
@@ -9,7 +9,7 @@ Part of the [bare-swift](https://github.com/bare-swift) ecosystem.
 ## Install
 
 ```swift
-.package(url: "https://github.com/bare-swift/swift-oauth2-client.git", from: "0.2.0")
+.package(url: "https://github.com/bare-swift/swift-oauth2-client.git", from: "0.3.0")
 ```
 
 ```swift
@@ -124,6 +124,67 @@ let body = client.requestBody(grant: .clientCredentials(scope: "read write"))
 ```swift
 let body = client.requestBody(grant: .refreshToken("rt-abc123"))
 ```
+
+### Token caching (v0.3+)
+
+```swift
+import OAuth2Client
+
+let storage = InMemoryTokenStorage()
+let client = OAuth2Client(...)
+
+// On each request:
+func now() -> UInt64 {
+    UInt64(Date().timeIntervalSince1970)  // or any other clock
+}
+
+if let cached = await storage.load(),
+   !cached.isExpired(at: now(), threshold: 60) {
+    // Reuse cached.response.accessToken
+    useToken(cached.response)
+} else {
+    // Trigger token exchange — caller wires HTTP:
+    let body = client.requestBody(grant: .clientCredentials(scope: "read"))
+    // ... POST tokenEndpoint, receive responseBytes ...
+    let response = try client.parseResponse(responseBytes)
+    let cached = CachedToken(response: response, obtainedAt: now())
+    await storage.store(cached)
+    useToken(response)
+}
+```
+
+`TokenStorage` is a passive cache — it stores tokens and reports expiry,
+but callers orchestrate HTTP refresh externally (matching the
+caller-driven-HTTP pattern from v0.1/v0.2). The provided
+`InMemoryTokenStorage` actor backs the default in-process case;
+adopters implement `TokenStorage` for Keychain, Redis, filesystem, etc.
+
+`CachedToken.isExpired(at:threshold:)` supports refresh-before-strict-
+expiry via the optional `threshold` parameter (seconds).
+
+### OIDC ID-token claims (v0.3+)
+
+When the token endpoint returns an `id_token` field (OpenID Connect Core
+1.0 § 3.1.3.3), it's surfaced on `TokenResponse.idToken: String?`.
+Standard claims can be extracted via `OIDCClaims.parse(_:)`:
+
+```swift
+let response = try client.parseResponse(responseBytes)
+if let idToken = response.idToken {
+    let claims = try OIDCClaims.parse(idToken)
+    // claims.iss, claims.sub, claims.aud, claims.exp, claims.iat, claims.nonce
+}
+```
+
+**`OIDCClaims.parse(_:)` does NOT verify the JWT signature.** It only
+base64url-decodes the JWT payload and extracts standard claim fields.
+Callers verify the signature externally (e.g., via swift-jwt-verify) and
+validate claim semantics (`iss` against expected issuer, `aud` against
+client ID, `exp` against current time, `nonce` against the original
+`OAuth2Client.randomToken()` value).
+
+For multi-value `aud` (array form), v0.3 returns empty `[]`; v0.4 may
+add richer claim parsing if adopter demand surfaces.
 
 ## Documentation
 

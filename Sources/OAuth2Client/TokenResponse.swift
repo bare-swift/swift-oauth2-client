@@ -18,17 +18,24 @@ public struct TokenResponse: Sendable, Equatable {
     /// Optional scope string (caller splits on space if multi-scope).
     public let scope: String?
 
+    /// OIDC `id_token` (RFC 7519 JWT) if present in the response (v0.3+).
+    /// Caller verifies signature externally (e.g., via swift-jwt-verify);
+    /// use ``OIDCClaims/parse(_:)`` to extract standard claims.
+    public let idToken: String?
+
     public init(
         accessToken: String,
         tokenType: String,
         expiresIn: Int? = nil,
         refreshToken: String? = nil,
-        scope: String? = nil
+        scope: String? = nil,
+        idToken: String? = nil
     ) {
         self.accessToken = accessToken
         self.tokenType = tokenType
         self.expiresIn = expiresIn
         self.refreshToken = refreshToken
         self.scope = scope
+        self.idToken = idToken
     }
 }

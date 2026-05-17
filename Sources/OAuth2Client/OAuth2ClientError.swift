@@ -14,4 +14,8 @@ public enum OAuth2ClientError: Error, Equatable, Sendable {
 
     /// Response bytes are not a valid top-level JSON object.
     case malformedJSON
+
+    /// ID token (RFC 7519 JWT) couldn't be parsed: wrong segment count,
+    /// malformed base64url payload, or non-JSON payload. Added in v0.3.
+    case invalidIDToken
 }
